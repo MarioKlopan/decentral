@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 
@@ -23,9 +24,9 @@ typedef struct thread_args{
 }thread_args;
 
 
-int server(char *port);  //hlavna funkcia serveru
+void *server(void *port);  //hlavna funkcia serveru
 int client(char *login);  //hlavna funkcia klienta
-void client_thread(int client_socket);      //funkcia ktoru vola server
+void *client_thread(void *client_socket);      //funkcia ktoru vola server
 int server_thread(thread_args *server_args);    //funkciu ktoru vola client
 
 int main(int argc, char *argv[]){
@@ -41,75 +42,81 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-int server(char *port){
+void *server(void *port){
 
-    printf("booting srever .....\n");
+    char *port_str = (char *) port;
+    printf("booting server\n");
 
     int serv_sock = socket(AF_INET, SOCK_STREAM, 0);    //socket serveru
-    if(serv_sock < 0)       //kontrola navratovej hodnoty funkcie socket
-        perror("error socket");
+    if(serv_sock < 0){       				//kontrola navratovej hodnoty funkcie socket
+    	fprintf(stderr,"Error, failed to create socket\n");
+	return NULL;
+    }
 
-    printf("socket spraveny :)\n");
+    printf("socket created\n");
     printf("socket int: %d\n", serv_sock);
 
-    //pole na spravy
+    //pole na uvodnu spravu
     char msg[255] = "stable connection, you can send messages";
 
     //structura kde sa definuje adresa serveru
     struct sockaddr_in serv_addr;
 
     serv_addr.sin_family = AF_INET; //definovanie ipv4 adries
-    serv_addr.sin_port = htons(atoi(port)); //pridelenie portu
+    serv_addr.sin_port = htons(atoi(port_str)); //pridelenie portu
     serv_addr.sin_addr.s_addr = INADDR_ANY; //server bude pocuvat na vsetkych sietovych interfaceoch
 
     //socket sa zviaze so specifickou ip adresou
-    printf("binding ........\n");
-    bind(serv_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+    printf("binding\n");
 
-    int clients[200]; //pole kde sa vytvoria sockety ked sa pripoji klient
-    bzero(clients, sizeof(clients));    //vycistenie pola cielnts
-    int num = 0;    //sluzi na indexovanie v poli
-    pthread_t thread_id[200];   //pole pre id threadov
-
-    while(1)
-    {
-        
-        printf("listening .......\n");
-        if(listen(serv_sock, 1) < 0)    //funkcia listen caka na spojenie akonahle sa pripoji niekto tak sa pripoji na socket ktory bol vytvoreny
-            perror("error with listening");
-
-        clients[num] = accept(serv_sock, NULL, NULL);   //funkcia accept vytvory novy socket s klientom a hlavy socket sa uvolni pre dalsich klientov ktory sa chcu pripojit
-        send(clients[num], msg, sizeof(msg), 0);    //send posle kontrolnu spravu klientovy aby vedel ze je uspesne pripojeny
-        pthread_create(&thread_id[num], NULL, client_thread, clients[num]); //vytvori sa novy thread s pripojenym klientom
-        num++;  //posunie sa poradovnik
-        
+    int bind_status;
+    bind_status = bind(serv_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+    if (bind_status == -1){
+	    fprintf(stderr, "Failed to bind\n");
+	    return NULL;
     }
 
-    return 0;
+    int clients[200]; //pole kde sa vytvoria sockety ked sa pripoji klient
+    pthread_t thread_id[200];   //pole pre id threadov
+    bzero(clients, sizeof(clients));    //vycistenie pola clients
+
+    if(listen(serv_sock, 1) < 0){    //zapne pasivne cakanie na pripojenia
+    	fprintf(stderr,"error while listening\n");
+	return NULL;
+    }
+
+    for(int i = 0; i < 200; i++)
+    {
+        
+        clients[i] = accept(serv_sock, NULL, NULL);   //akceptuje pripojenie klienta a uvolni hlavny socket pre dalsie pripojenia
+        send(clients[i], msg, sizeof(msg), 0);    //send posle kontrolnu spravu klientovy aby vedel ze je uspesne pripojeny
+        pthread_create(&thread_id[i], NULL, client_thread, &clients[i]); //vytvori sa novy thread s pripojenym klientom
+    }
+
+    return NULL;
 }
 
 //funkcia ktora sluzi na prijmanie sparv, funkcia je spustena v novom threade
-void client_thread(int client_socket){
+void *client_thread(void *client_socket){
+	
+   int *client_socket_int = (int *) client_socket;
 
     char user[100] = {};     //pole na uzivatelske meno
-    recv(client_socket, user, sizeof(user), 0);     //prva sprava od klienta je pasivne poslana a je to uzivatelske meno
+    recv(*client_socket_int, user, sizeof(user), 0);     //prva sprava od klienta je pasivne poslana ako identifikacne uzivatelske meno 
+    printf("user joined the conversation: %s\n", user);  
 
-    
-    printf("accepted, new user: %s\n", user);  
-
-    
-
+   
     char buffer[255];   //pole na zapisanie prichadzajucich sprav
-    int a = 0;  //uklada navratovu hodnotu funkcie recv()
+    int disconnect_check = 0;  //uklada navratovu hodnotu funkcie recv()
     while (1)
     {
         bzero(buffer, sizeof(buffer));  //vycisti pole kde sa zapisuju prijate spravy
 
-        a = recv(client_socket, buffer, sizeof(buffer), 0);     //funkcia prijma spravy
+        disconnect_check = recv(*client_socket_int, buffer, sizeof(buffer), 0);     //funkcia prijma spravy
         
-        if(a == 0)
+        if(disconnect_check == 0)
         {
-            fprintf(stderr, "ERROR: client was shutdowned, user: %s\n", user);
+            printf("user: %s disconnected\n", user);
             break;
         } 
         
@@ -117,20 +124,20 @@ void client_thread(int client_socket){
 
         if(strncmp("//quit", buffer, 6) == 0)   //pokial client napise //quit tak ukoncuje spojenie, thread sa zavrie
         {
-            printf("closing connection with user: %s\n", user);
+            printf("user: %s disconnected\n", user);
             break;
             
 
         }
     }
     printf("closed connection with user: %s\n", user);
-    close(client_socket);
-
+    close(*client_socket_int);
+    return NULL;
 }
 
 int client(char *login){
     
-    printf("booting client .....\n");
+    printf("booting client\n");
 
     thread_args server_args;    //vytovrenie struktury v ktorej su ulozene informacie o serveroch
     
@@ -166,7 +173,7 @@ int client(char *login){
     }
     
 
-    //cyklus kde sa vytvroi novy thread, for sa opakuje kym nevycerpa vsetky adresy
+    //cyklus kde sa vytvori novy thread, for sa opakuje kym nevycerpa vsetky adresy
     for (int i = 0; server_args.ip_address[i][0] != 0; i++)
     {
         server_args.num = i;
