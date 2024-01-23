@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include <pthread.h>
 #include "client.h"
+#include "server.h"
+
+extern int new_connection;
 
 
 void *client(void *login){
@@ -46,7 +49,7 @@ void *client(void *login){
     {
         server_args.num = i;
         printf("Client: %d. Connecting with %s\n", server_args.num + 1, server_args.ip_address[i]);
-	server_thread(&server_args);
+	    server_thread(&server_args);
     }
 
     int live_counter = 0;   //uklada pocet serverov s ktorymi bolo naviazane spojenie
@@ -58,7 +61,7 @@ void *client(void *login){
     if(live_counter == 0)   //ak je live_counter nula tak su vsetky servre vypnute
     {
         printf("Client: No active servers, exiting\n");
-        return NULL;
+        //return NULL;
     }
     else    //inak bolo naviazane nejake uspesne spojenie a uzivatel moze pisat, zobrazi sa mu logo a pocet pripojenych serverov zo vsetkch
     {
@@ -69,38 +72,54 @@ void *client(void *login){
     int a = 0;
     while (1)
     {
-
-        bzero(buffer, sizeof(buffer));  //vycistenie pola
-        printf("you: ");    //koli rozliseniu v chate
-        fgets(buffer, sizeof(buffer), stdin);   
-
-        for (int i = 0; i < 200; i++)   //cyklus sluzi na rozposlanie sprav iba aktivnym spojeniam
+        if(new_connection == 1)
         {
-            if(server_args.open_sockets[i] == 1)
+            for (int i = 0; server_args.ip_address[i][0] != 0; i++)
             {
-                a = write(server_args.server_sockets[i], buffer, sizeof(buffer));
-                if(a < 0)
+                if(server_args.open_sockets[i] == 0)
                 {
-                    fprintf(stderr, "Client: Failed to send message\n");
+                    server_args.num = i;
+                    printf("Client: %d. Connecting with %s\n", server_args.num + 1, server_args.ip_address[i]);
+                    server_thread(&server_args);
                 }
-                
+            } 
+            new_connection = 0;
 
-            }
         }
 
-        //pokial klient napise //quit tak odchadza z chatu a uknoci komunikaciu a aplikacia sa vypne
-        if(strncmp("//quit", buffer, 6) == 0)
+        if(live_counter > 0)
         {
-            printf("closing connection\n");
-            for (int j = 0; j < 200; j++)
+            bzero(buffer, sizeof(buffer));  //vycistenie pola
+            printf("you: ");    //koli rozliseniu v chate
+            fgets(buffer, sizeof(buffer), stdin);   
+
+            for (int i = 0; i < 200; i++)   //cyklus sluzi na rozposlanie sprav iba aktivnym spojeniam
             {
-                if(server_args.open_sockets[j] == 1)
-                    close(server_args.server_sockets[j]);
+                if(server_args.open_sockets[i] == 1)
+                {
+                    a = write(server_args.server_sockets[i], buffer, sizeof(buffer));
+                    if(a < 0)
+                    {
+                        fprintf(stderr, "Client: Failed to send message\n");
+                    }
+                    
+
+                }
             }
-            printf("closed\n");
-            break;
+
+            //pokial klient napise //quit tak odchadza z chatu a uknoci komunikaciu a aplikacia sa vypne
+            if(strncmp("//quit", buffer, 6) == 0)
+            {
+                printf("closing connection\n");
+                for (int j = 0; j < 200; j++)
+                {
+                    if(server_args.open_sockets[j] == 1)
+                        close(server_args.server_sockets[j]);
+                }
+                printf("closed\n");
+                break;
+            }
         }
-        
     }
 
     return NULL;
@@ -152,3 +171,4 @@ int server_thread(thread_args *server_args){
     write(server_args->server_sockets[server_args->num], server_args->login, sizeof(server_args->login));   //klient ako prvu spravu posle na server svoju indentifikaciu
     return 0;
 }
+
