@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include "server.h"
 
+int new_connection = 0; //globalna premenna ktora sa zmeni ked sa pripoji niekto novy
 
 void *server(void *port){
 
@@ -25,7 +26,7 @@ void *server(void *port){
     printf("Server: Socket created\n");
 
     //pole na uvodnu spravu
-    char msg[255] = "stable connection, you can send messages\n";
+    char msg[255] = "Stable connection, you can send messages\n";
 
     //structura kde sa definuje adresa serveru
     struct sockaddr_in serv_addr;
@@ -58,6 +59,9 @@ void *server(void *port){
     for(int i = 0; i < 200; i++)
     {        
         clients[i] = accept(serv_sock, NULL, NULL);   //akceptuje pripojenie klienta a uvolni hlavny socket pre dalsie pripojenia
+        if(clients[i] > -1){
+            new_connection = 1;
+        }
         send(clients[i], msg, sizeof(msg), 0);    //send posle kontrolnu spravu klientovy aby vedel ze je uspesne pripojeny
         pthread_create(&thread_id[i], NULL, client_thread, &clients[i]); //vytvori sa novy thread s pripojenym klientom
     }
