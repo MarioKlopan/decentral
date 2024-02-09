@@ -8,7 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <pthread.h>
-#include "server.h"
+#include "headers/server.h"
 
 #define PORT 8080
 

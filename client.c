@@ -8,8 +8,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <pthread.h>
-#include "client.h"
-#include "server.h"
+#include "headers/client.h"
+#include "headers/server.h"
 
 #define PORT 8080
 
@@ -33,7 +33,7 @@ void *client(void *login){
     //nacitanie adries zo suboru
     printf("Client: Loading addresses\n");
     FILE* addresses;
-    addresses = fopen("adresy.txt", "r");      //TODO - dynamicke zadanie suboru, zle otvorenie poriesit
+    addresses = fopen("./text/adresy.txt", "r");      //TODO - dynamicke zadanie suboru, zle otvorenie poriesit
     char tmp;
     for (int i = 0; tmp != EOF; i++)    //kazdy cyklus je jedna adresa
     {
