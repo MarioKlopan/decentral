@@ -10,11 +10,13 @@
 #include <pthread.h>
 #include "server.h"
 
+#define PORT 8080
+
 int new_connection = 0; //globalna premenna ktora sa zmeni ked sa pripoji niekto novy
 
-void *server(void *port){
+void *server(){
 
-    char *port_str = (char *) port;
+    //char *port_str = (char *) port;
     printf("Server: Booting server\n");
 
     int serv_sock = socket(AF_INET, SOCK_STREAM, 0);    //socket serveru
@@ -32,7 +34,7 @@ void *server(void *port){
     struct sockaddr_in serv_addr;
 
     serv_addr.sin_family = AF_INET; //definovanie ipv4 adries
-    serv_addr.sin_port = htons(atoi(port_str)); //pridelenie portu
+    serv_addr.sin_port = htons(PORT); //pridelenie portu
     serv_addr.sin_addr.s_addr = INADDR_ANY; //server bude pocuvat na vsetkych sietovych interfaceoch
 
     //socket sa zviaze so specifickou ip adresou
@@ -93,7 +95,7 @@ void *client_thread(void *client_socket){
             break;
         } 
         
-        printf("%s: %s", user, buffer);
+        printf("\x1B[32m" "%s:" "\x1B[0m" " %s", user, buffer);
 
         if(strncmp("//quit", buffer, 6) == 0)   //pokial client napise //quit tak ukoncuje spojenie, thread sa zavrie
         {

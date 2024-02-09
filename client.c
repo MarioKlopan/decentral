@@ -11,6 +11,8 @@
 #include "client.h"
 #include "server.h"
 
+#define PORT 8080
+
 extern int new_connection;
 
 
@@ -50,6 +52,7 @@ void *client(void *login){
         server_args.num = i;
         printf("Client: %d. Connecting with %s\n", server_args.num + 1, server_args.ip_address[i]);
 	    server_thread(&server_args);
+        
     }
 
     int live_counter = 0;   //uklada pocet serverov s ktorymi bolo naviazane spojenie
@@ -90,7 +93,7 @@ void *client(void *login){
         if(live_counter > 0)
         {
             bzero(buffer, sizeof(buffer));  //vycistenie pola
-            printf("you: ");    //koli rozliseniu v chate
+            printf("\x1B[31m" "you: " "\x1B[0m");    //koli rozliseniu v chate
             fgets(buffer, sizeof(buffer), stdin);   
 
             for (int i = 0; i < 200; i++)   //cyklus sluzi na rozposlanie sprav iba aktivnym spojeniam
@@ -141,7 +144,7 @@ int server_thread(thread_args *server_args){
     struct sockaddr_in server_addr; //vytorenie structuri ktora sa dava spojeniu aby vedelo s kym a ako komunikovat
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(8080);     //TODO - dynamicky pridelovat port
+    server_addr.sin_port = htons(PORT);     //port
 
     
     if(inet_pton(AF_INET, server_args->ip_address[server_args->num], &server_addr.sin_addr) <= 0)   //funkcia na prelozenie ip adresy
